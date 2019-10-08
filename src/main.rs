@@ -36,6 +36,7 @@ fn echo(req: Request<Body>) -> BoxFut {
     match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => {
             let auth_header_op = req.headers().get(AUTHORIZATION);
+            println!("{:?}", req);
             match auth_header_op {
                 Some(value) => println!("Authorization: {:?}", value),
                 None => println!("None!")
