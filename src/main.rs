@@ -5,16 +5,16 @@ use hyper::header::AUTHORIZATION;
 use hyper::rt::Future;
 use hyper::service::service_fn;
 
-const PHRASE: &str = "Hello, World!";
+const PORT: u16 = 8080;
 
 // Just a simple type alias
 type BoxFut = Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>;
 
 
 fn main() {
-    println!("{}", PHRASE);
+    println!("Server running on port: {}", PORT);
     // This is our socket address...
-    let addr = ([0, 0, 0, 0], 8080).into();
+    let addr = ([0, 0, 0, 0], PORT).into();
 // A `Service` is needed for every connection, so this
 // creates one from our `hello_world` function.
     let new_svc = || {
@@ -39,7 +39,17 @@ fn echo(req: Request<Body>) -> BoxFut {
             println!("{:?}", req);
             match auth_header_op {
                 Some(value) => println!("Authorization: {:?}", value),
-                None => println!("None!")
+                _ => ()
+            }
+
+            *response.body_mut() = Body::from("Ok");
+        }
+        (&Method::POST, "/") => {
+            let auth_header_op = req.headers().get(AUTHORIZATION);
+            println!("{:?}", req);
+            match auth_header_op {
+                Some(value) => println!("Authorization: {:?}", value),
+                _ => ()
             }
 
             *response.body_mut() = Body::from("Ok");
