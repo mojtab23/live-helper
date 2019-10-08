@@ -14,7 +14,7 @@ type BoxFut = Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>;
 fn main() {
     println!("{}", PHRASE);
     // This is our socket address...
-    let addr = ([127, 0, 0, 1], 3000).into();
+    let addr = ([0, 0, 0, 0], 8080).into();
 // A `Service` is needed for every connection, so this
 // creates one from our `hello_world` function.
     let new_svc = || {
