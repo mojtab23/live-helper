@@ -65,7 +65,6 @@ fn echo(req: Request<Body>) -> BoxFut {
             let request = body.concat2()
                 .map(move |chunk| {
                     let body = chunk.iter()
-                        .rev()
                         .cloned()
                         .collect::<Vec<u8>>();
                     let result = str::from_utf8(body.as_slice());
