@@ -1,11 +1,15 @@
-use futures::future;
-use hyper::{Body, Request, Response, Server};
-use hyper::{Method, StatusCode};
-use hyper::header::AUTHORIZATION;
+use std::fmt::Debug;
+use std::io::Bytes;
+use std::str;
+
+use futures::{future, Stream};
+use hyper::{Body, Chunk, Client, header, Method, Request, Response, Server, StatusCode};
+use hyper::header::{AUTHORIZATION, CONTENT_LENGTH};
 use hyper::rt::Future;
 use hyper::service::service_fn;
 
-const PORT: u16 = 8080;
+const PORT: u16 = 3000;
+const NOTFOUND: &[u8] = b"404\nNot Found";
 
 // Just a simple type alias
 type BoxFut = Box<dyn Future<Item=Response<Body>, Error=hyper::Error> + Send>;
@@ -33,7 +37,7 @@ fn main() {
 fn echo(req: Request<Body>) -> BoxFut {
     let mut response = Response::new(Body::empty());
 
-    match (req.method(), req.uri().path()) {
+    return match (req.method(), req.uri().path()) {
         (&Method::GET, "/") => {
             let auth_header_op = req.headers().get(AUTHORIZATION);
             println!("{:?}", req);
@@ -43,23 +47,51 @@ fn echo(req: Request<Body>) -> BoxFut {
             }
 
             *response.body_mut() = Body::from("Ok");
+            Box::new(future::ok(response))
         }
         (&Method::POST, "/") => {
-            let auth_header_op = req.headers().get(AUTHORIZATION);
             println!("{:?}", req);
+            let (parts, body) = req.into_parts();
+            let auth_header_op = parts.headers.get(AUTHORIZATION);
+
+            match parts.headers.get(CONTENT_LENGTH) {
+                Some(len) => {
+                    println!("len: {:?}", len);
+                }
+                _ => ()
+            };
+
+
+            let request = body.concat2()
+                .map(move |chunk| {
+                    let body = chunk.iter()
+                        .rev()
+                        .cloned()
+                        .collect::<Vec<u8>>();
+                    let result = str::from_utf8(body.as_slice());
+                    match result {
+                        Ok(string) => println!("fucking body:{}", string),
+                        _ => ()
+                    }
+                    *response.body_mut() = Body::from(body);
+                    response
+                });
+
             match auth_header_op {
                 Some(value) => println!("Authorization: {:?}", value),
                 _ => ()
             }
 
-            *response.body_mut() = Body::from("Ok");
+//            *response.body_mut() = Body::from("Ok");
+            Box::new(request)
         }
         _ => {
+            let body = Body::from(NOTFOUND);
             *response.status_mut() = StatusCode::NOT_FOUND;
+            *response.body_mut() = body;
+            Box::new(future::ok(response))
         }
     };
-
-    Box::new(future::ok(response))
 }
 
 //fn hello_world(_req: Request<Body>) -> Response<Body> {
