@@ -9,6 +9,8 @@ RUN apt install -y ffmpeg nginx libnginx-mod-rtmp
 
 COPY nginx.conf /etc/nginx/nginx.conf
 
+VOLUME /data
+
 EXPOSE 80 8080 1935
 
 CMD ["nginx", "-g", "daemon off;"]
