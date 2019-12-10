@@ -1,84 +1,105 @@
 use std::io::{self, Write};
-use std::process::{Stdio, Command};
+use std::process::Command;
 
 use structopt::StructOpt;
-use std::borrow::Cow;
-use std::str::Split;
 use std::fs;
-use std::path::Path;
 
-//use base64::decode;
-
-
-/// folder name: KwLzl/processed/video/5036160f-8aed-49bb-b2da-3375ba113f55
-/// folder name: KwLzl/processed/video/5036160f-8aed-49bb-b2da-3375ba113f55/480P/012.ts
 
 const FFMPEG: &str = "ffmpeg";
-const ARGS: &str = " ffmpeg -i rtmp://localhost/live/tabvn -c:a aac -b:a 32k -c:v libx264 -b:v 128K -hls_time 1 out.m3u8";
+const PLAYLIST_HEADER: &str = "#EXTM3U\n#EXT-X-VERSION:3\n";
 
 fn main() {
-    let args: Cli = Cli::from_args();
-    let encoded_data = args.input;
+    let cli: Cli = Cli::from_args();
+    dbg!(&cli);
+
+    let mut playlist = String::from(PLAYLIST_HEADER);
+    let any_output = check_playlist_outputs(&mut playlist, &cli);
+    if !any_output {
+        println!("There is no output type, see --help");
+        return;
+    };
+
+    let relative_root_path = cli.root_path.as_ref().map_or("./", String::as_str);
+//    let root_path = cli.root_path.as_ref().map_or("", String::as_str);
+    let root_path = &cli.root_path.as_ref();
+    dbg!(&root_path);
+
+
+    let encoded_data = &cli.input;
     let input = decode_input(encoded_data);
 
     let id_result = read_input_id(&input).unwrap();
 
     let source = format!("{}{}", "rtmp://localhost/live/", id_result);
     let mut args = vec![
-//        FFMPEG,
-"-y",//Overwrite output files without asking.
-"-i",// Input
-source.as_str(),
+        "-y",//Overwrite output files without asking.
+        "-i",// Input
+        source.as_str(),
     ];
+
+    let qcif_variant = VideoVariants::QCIF.get_variant();
+    let cif_variant = VideoVariants::CIF.get_variant();
+    let qsd_variant = VideoVariants::QSD.get_variant();
+    let sd_variant = VideoVariants::SD.get_variant();
     let hd_variant = VideoVariants::HD.get_variant();
+    let fhd_variant = VideoVariants::FHD.get_variant();
+    let uhd_variant = VideoVariants::UHD.get_variant();
 
 
-    let hd_args = hd_variant.get_args();
-
-    args.extend_from_slice(&hd_args);
 //    let directory = format!("{}", &input);
-    let relative_path = format!("./{}", &input);
-    let quality_path = format!("{}/{}", &input, &hd_variant.display_name);
-    let output_path = format!("{}/manifest.m3u8", &quality_path);
-    let relative_quality_path = format!("./{}", &quality_path);
-    dbg!(&input);
-    dbg!(&output_path);
-    dbg!(&relative_path);
-    dbg!(&quality_path);
-    dbg!(&relative_quality_path);
+    let relative_path = format!("{}{}", relative_root_path, &input);
+//    let quality_path = format!("{}/{}", &input, &hd_variant.display_name);
+//    let output_path = format!("{}/manifest.m3u8", &quality_path);
+//    let relative_quality_path = format!("./{}", &quality_path);
+    let playlist_path = format!("{}/playlist.m3u8", &relative_path);
 
-    let segment_filename = format!("{}/%03d.ts", quality_path);
-    args.push(segment_filename.as_str());
-    args.push(output_path.as_str());
+    dbg!(&input);
+//    dbg!(&output_path);
+    dbg!(&relative_path);
+//    dbg!(&quality_path);
+//    dbg!(&relative_quality_path);
+
+//    let segment_filename = format!("{}/%03d.ts", quality_path);
+
+    if cli.uhd {
+        let uhd_args = uhd_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&uhd_args);
+    };
+    if cli.fhd {
+        let fhd_args = fhd_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&fhd_args);
+    };
+    if cli.hd {
+        let hd_args = hd_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&hd_args);
+    };
+    if cli.sd {
+        let sd_args = sd_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&sd_args);
+    };
+    if cli.qsd {
+        let qsd_args = qsd_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&qsd_args);
+    };
+    if cli.cif {
+        let cif_args = cif_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&cif_args);
+    };
+    if cli.qcif {
+        let qcif_args = qcif_variant.get_args(input.as_str(), root_path);
+        args.extend_from_slice(&qcif_args);
+    };
+
     dbg!(&args);
 
-    fs::create_dir_all(&relative_path).unwrap();
-    fs::create_dir_all(&relative_quality_path).unwrap();
+    dbg!(&playlist_path);
+    fs::write(&playlist_path, &playlist).unwrap();
 
 
-    //    let data = decode(&encoded_data).unwrap();
-//    let result = String::from_utf8_lossy(&data);
-//    let string = result.to_string();
-//    use std::process::Command;
-//
     let child = Command::new(FFMPEG)
         .args(&args)
-//        .arg("-i")
-//        .arg("rtmp://localhost/live/tabvn")
-//        .arg("-c:a")
-//        .arg("aac")
-//        .arg("-b:a")
-//        .arg("32k")
-//        .arg("-c:v")
-//        .arg("libx264")
-//        .arg("-b:v")
-//        .arg("128K")
-//        .arg("-hls_time")
-//        .arg("1")
-//        .arg("out.m3u8")
-//        .output()
         .spawn()
-        .expect("ls command failed to start");
+        .expect("Command failed to start");
 
     let output = child
         .wait_with_output()
@@ -90,7 +111,7 @@ source.as_str(),
     assert!(output.status.success());
 }
 
-fn decode_input(string: String) -> String {
+fn decode_input(string: &String) -> String {
     use percent_encoding::percent_decode;
     let decoded = percent_decode(string.as_bytes()).decode_utf8().unwrap();
     println!("{}", decoded);
@@ -98,7 +119,40 @@ fn decode_input(string: String) -> String {
 }
 
 
-fn add_transcode_variants(args: &mut Vec<&str>) {}
+fn check_playlist_outputs(playlist: &mut String, cli: &Cli) -> bool {
+    let mut any_output = false;
+    // order of adding matters!
+    if cli.uhd {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=7000000,RESOLUTION=3840x2160\n2160P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.fhd {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n1080P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.hd {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720\n720P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.sd {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480\n480P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.qsd {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\n360P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.cif {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=600000,RESOLUTION=426x240\n240P/manifest.m3u8\n");
+        any_output = true;
+    };
+    if cli.qcif {
+        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=256x144\n144P/manifest.m3u8\n");
+        any_output = true;
+    };
+    return any_output;
+}
+
 
 fn read_input_id(input: &String) -> Result<String, ()> {
 //    let in_str = input.as_str();
@@ -120,10 +174,35 @@ struct VideoVariant {
 }
 
 impl VideoVariant {
-    fn get_args(&self) -> Vec<&str> {
-        return vec!["-c:a", "aac", "-b:a", self.audio_bitrate, "-c:v", "libx264", "-b:v",
-                    self.bitrate_low_motion, "-hls_time", "1", "-hls_segment_filename"];
+    fn get_args(&self, input: &str, root_path: &Option<&String>) -> Vec<&str> {
+        let relative_root_path = root_path.map_or("./", String::as_str);
+        let root_path_str = root_path.map_or("", String::as_str);
+
+        let quality_path = format!("{}{}/{}", root_path_str, input, &self.display_name);
+        let relative_quality_path = format!("{}{}/{}", relative_root_path, input, &self.display_name);
+        dbg!(&relative_quality_path);
+        fs::create_dir_all(&relative_quality_path).unwrap();
+
+
+//        let video: String = format!("scale=w={}:h={}:force_original_aspect_ratio=decrease", &self.width, &self.height);
+        let video: String = format!("scale=w={}:h={}", &self.width, &self.height);
+        let segment_file = format!("{}/%03d.ts", &quality_path);
+        let output = format!("{}/manifest.m3u8", &quality_path);
+
+        let video_filter = string_to_static_str(video);
+        let segment_filename = string_to_static_str(segment_file);
+        let output_file = string_to_static_str(output);
+
+        return vec!["-vf", video_filter, "-c:a", "aac", "-b:a", self.audio_bitrate, "-c:v", "libx264",
+                    "-b:v", self.bitrate_low_motion, "-maxrate", self.bitrate_high_motion,
+                    "-sc_threshold", "0", "-g", "48", "-keyint_min", "48", "-hls_time", "6",
+                    "-hls_playlist_type", "event", "-hls_flags", "append_list", "-hls_segment_filename", segment_filename, output_file];
     }
+}
+
+/// Magic!
+fn string_to_static_str(s: String) -> &'static str {
+    Box::leak(s.into_boxed_str())
 }
 
 enum VideoVariants {
@@ -204,73 +283,40 @@ impl VideoVariants {
             },
         };
     }
-    //    const QCIF: VideVariant = VideoVariant {
-//        width: 256,
-//        height: 144,
-//        display_name: "144P",
-//        resolution: "256x144",
-//        bitrate_low_motion: 400_000,
-//        bitrate_high_motion: 450_000,
-//        audio_bitrate: 32_000,
-//    };
-//    const CIF: VideVariant = VideoVariant {
-//        width: 426,
-//        height: 240,
-//        display_name: "240P",
-//        resolution: "426x240",
-//        bitrate_low_motion: 600_000,
-//        bitrate_high_motion: 650_000,
-//        audio_bitrate: 64_000,
-//    };
-//    const QSD: VideVariant = VideoVariant {
-//        width: 640,
-//        height: 360,
-//        display_name: "360P",
-//        resolution: "640x360",
-//        bitrate_low_motion: 800_000,
-//        bitrate_high_motion: 856_000,
-//        audio_bitrate: 96_000,
-//    };
-//    const SD: VideVariant = VideoVariant {
-//        width: 854,
-//        height: 480,
-//        display_name: "480P",
-//        resolution: "854x480",
-//        bitrate_low_motion: 1_400_000,
-//        bitrate_high_motion: 1_498_000,
-//        audio_bitrate: 128_000,
-//    };
-//    const HD: VideVariant = VideoVariant {
-//        width: 1280,
-//        height: 720,
-//        display_name: "720P",
-//        resolution: "1280x720",
-//        bitrate_low_motion: 2_800_000,
-//        bitrate_high_motion: 2_996_000,
-//        audio_bitrate: 128_000,
-//    };
-//    const FHD: VideVariant = VideoVariant {
-//        width: 1920,
-//        height: 1080,
-//        display_name: "1080P",
-//        resolution: "1920x1080",
-//        bitrate_low_motion: 5_000_000,
-//        bitrate_high_motion: 5_350_000,
-//        audio_bitrate: 194_000,
-//    };
-//    const UHD: VideVariant = VideoVariant {
-//        width: 3840,
-//        height: 2160,
-//        display_name: "2160P",
-//        resolution: "3840x2160",
-//        bitrate_low_motion: 7_000_000,
-//        bitrate_high_motion: 7_350_000,
-//        audio_bitrate: 194_000,
-//    };
 }
 
-#[derive(StructOpt)]
+#[derive(Debug, StructOpt)]
+/// EXAMPLE USAGE: ./live-helper-service --hd --sd KwLzl%2Fprocessed%2Fvideo%2F5036160f-8aed-49bb-b2da-3375ba113f55
+///
+/// example folder name: KwLzl/processed/video/5036160f-8aed-49bb-b2da-3375ba113f55
+///
+/// example file name: KwLzl/processed/video/5036160f-8aed-49bb-b2da-3375ba113f55/480P/012.ts
 struct Cli {
+    /// Percent decoded file path that ends with video id.
     input: String,
+    /// Root path for all files and subdirectories that come from input argument.
+    /// default is relative path './'; Example '/home/user'
+    root_path: Option<String>,
+    /// Enables 144P output
+    #[structopt(long)]
+    qcif: bool,
+    /// Enables 240P output
+    #[structopt(long)]
+    cif: bool,
+    /// Enables 360P output
+    #[structopt(long)]
+    qsd: bool,
+    /// Enables 480P output
+    #[structopt(long)]
+    sd: bool,
+    /// Enables 720P output
+    #[structopt(long)]
+    hd: bool,
+    /// Enables 1080P output
+    #[structopt(long)]
+    fhd: bool,
+    /// Enables 2160P output
+    #[structopt(long)]
+    uhd: bool,
 
 }
