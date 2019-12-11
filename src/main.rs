@@ -30,7 +30,7 @@ fn main() {
 
     let id_result = read_input_id(&input).unwrap();
 
-    let source = format!("{}{}", "rtmp://localhost/live/", id_result);
+    let source = format!("rtmp://localhost/src/{}", id_result);
     let mut args = vec![
         "-y",//Overwrite output files without asking.
         "-i",// Input
