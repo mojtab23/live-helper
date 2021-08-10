@@ -1,9 +1,9 @@
 use std::io::{self, Write};
 use std::process::Command;
 
-use structopt::StructOpt;
 use std::fs;
-
+use str_macro::str;
+use structopt::StructOpt;
 
 const FFMPEG: &str = "ffmpeg";
 const PLAYLIST_HEADER: &str = "#EXTM3U\n#EXT-X-VERSION:3\n";
@@ -20,10 +20,8 @@ fn main() {
     };
 
     let relative_root_path = cli.root_path.as_ref().map_or("./", String::as_str);
-//    let root_path = cli.root_path.as_ref().map_or("", String::as_str);
     let root_path = &cli.root_path.as_ref();
     dbg!(&root_path);
-
 
     let encoded_data = &cli.input;
     let input = decode_input(encoded_data);
@@ -32,9 +30,9 @@ fn main() {
 
     let source = format!("rtmp://localhost/src/{}", id_result);
     let mut args = vec![
-        "-y",//Overwrite output files without asking.
-        "-i",// Input
-        source.as_str(),
+        str!("-y"), //Overwrite output files without asking.
+        str!("-i"), // Input
+        source,
     ];
 
     let qcif_variant = VideoVariants::QCIF.get_variant();
@@ -45,21 +43,11 @@ fn main() {
     let fhd_variant = VideoVariants::FHD.get_variant();
     let uhd_variant = VideoVariants::UHD.get_variant();
 
-
-//    let directory = format!("{}", &input);
     let relative_path = format!("{}{}", relative_root_path, &input);
-//    let quality_path = format!("{}/{}", &input, &hd_variant.display_name);
-//    let output_path = format!("{}/manifest.m3u8", &quality_path);
-//    let relative_quality_path = format!("./{}", &quality_path);
     let playlist_path = format!("{}/playlist.m3u8", &relative_path);
 
     dbg!(&input);
-//    dbg!(&output_path);
     dbg!(&relative_path);
-//    dbg!(&quality_path);
-//    dbg!(&relative_quality_path);
-
-//    let segment_filename = format!("{}/%03d.ts", quality_path);
 
     if cli.uhd {
         let uhd_args = uhd_variant.get_args(input.as_str(), root_path);
@@ -95,15 +83,12 @@ fn main() {
     dbg!(&playlist_path);
     fs::write(&playlist_path, &playlist).unwrap();
 
-
     let child = Command::new(FFMPEG)
         .args(&args)
         .spawn()
         .expect("Command failed to start");
 
-    let output = child
-        .wait_with_output()
-        .expect("failed to wait on child");
+    let output = child.wait_with_output().expect("failed to wait on child");
     println!("status: {}", output.status);
     io::stdout().write_all(&output.stdout).unwrap();
     io::stderr().write_all(&output.stderr).unwrap();
@@ -118,48 +103,59 @@ fn decode_input(string: &String) -> String {
     return decoded.to_string();
 }
 
-
 fn check_playlist_outputs(playlist: &mut String, cli: &Cli) -> bool {
     let mut any_output = false;
     // order of adding matters!
     if cli.uhd {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=7000000,RESOLUTION=3840x2160\n2160P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=7000000,RESOLUTION=3840x2160\n2160P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.fhd {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n1080P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=5000000,RESOLUTION=1920x1080\n1080P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.hd {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720\n720P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=1280x720\n720P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.sd {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480\n480P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=1400000,RESOLUTION=842x480\n480P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.qsd {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\n360P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=800000,RESOLUTION=640x360\n360P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.cif {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=600000,RESOLUTION=426x240\n240P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=600000,RESOLUTION=426x240\n240P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     if cli.qcif {
-        playlist.push_str("#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=256x144\n144P/manifest.m3u8\n");
+        playlist.push_str(
+            "#EXT-X-STREAM-INF:BANDWIDTH=400000,RESOLUTION=256x144\n144P/manifest.m3u8\n",
+        );
         any_output = true;
     };
     return any_output;
 }
 
-
 fn read_input_id(input: &String) -> Result<String, ()> {
-//    let in_str = input.as_str();
     let id = input.split("/").last();
     match id {
         Some(id) => Ok(id.to_string()),
-        None => Err(())
+        None => Err(()),
     }
 }
 
@@ -174,35 +170,54 @@ struct VideoVariant {
 }
 
 impl VideoVariant {
-    fn get_args(&self, input: &str, root_path: &Option<&String>) -> Vec<&str> {
+    fn get_args(&self, input: &str, root_path: &Option<&String>) -> Vec<String> {
         let relative_root_path = root_path.map_or("./", String::as_str);
         let root_path_str = root_path.map_or("", String::as_str);
 
         let quality_path = format!("{}{}/{}", root_path_str, input, &self.display_name);
-        let relative_quality_path = format!("{}{}/{}", relative_root_path, input, &self.display_name);
+        let relative_quality_path =
+            format!("{}{}/{}", relative_root_path, input, &self.display_name);
         dbg!(&relative_quality_path);
         fs::create_dir_all(&relative_quality_path).unwrap();
 
-
-//        let video: String = format!("scale=w={}:h={}:force_original_aspect_ratio=decrease", &self.width, &self.height);
         let video: String = format!("scale=w={}:h={}", &self.width, &self.height);
         let segment_file = format!("{}/%03d.ts", &quality_path);
         let output = format!("{}/manifest.m3u8", &quality_path);
 
-        let video_filter = string_to_static_str(video);
-        let segment_filename = string_to_static_str(segment_file);
-        let output_file = string_to_static_str(output);
+        let video_filter = video;
+        let segment_filename = segment_file;
+        let output_file = output;
 
-        return vec!["-vf", video_filter, "-c:a", "aac", "-b:a", self.audio_bitrate, "-c:v", "libx264",
-                    "-b:v", self.bitrate_low_motion, "-maxrate", self.bitrate_high_motion,
-                    "-sc_threshold", "0", "-g", "48", "-keyint_min", "48", "-hls_time", "6",
-                    "-hls_playlist_type", "event", "-hls_flags", "append_list", "-hls_segment_filename", segment_filename, output_file];
+        return vec![
+            str!("-vf"),
+            video_filter,
+            str!("-c:a"),
+            str!("aac"),
+            str!("-b:a"),
+            str!(self.audio_bitrate),
+            str!("-c:v"),
+            str!("libx264"),
+            str!("-b:v"),
+            str!(self.bitrate_low_motion),
+            str!("-maxrate"),
+            str!(self.bitrate_high_motion),
+            str!("-sc_threshold"),
+            str!("0"),
+            str!("-g"),
+            str!("48"),
+            str!("-keyint_min"),
+            str!("48"),
+            str!("-hls_time"),
+            str!("6"),
+            str!("-hls_playlist_type"),
+            str!("event"),
+            str!("-hls_flags"),
+            str!("append_list"),
+            str!("-hls_segment_filename"),
+            segment_filename,
+            output_file,
+        ];
     }
-}
-
-/// Magic!
-fn string_to_static_str(s: String) -> &'static str {
-    Box::leak(s.into_boxed_str())
 }
 
 enum VideoVariants {
@@ -216,7 +231,7 @@ enum VideoVariants {
 }
 
 impl VideoVariants {
-    fn get_variant(self) -> VideoVariant {
+    fn get_variant(&self) -> VideoVariant {
         return match self {
             VideoVariants::QCIF => VideoVariant {
                 width: "256",
@@ -318,5 +333,4 @@ struct Cli {
     /// Enables 2160P output
     #[structopt(long)]
     uhd: bool,
-
 }

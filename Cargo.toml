@@ -8,6 +8,5 @@ edition = "2018"
 
 [dependencies]
 percent-encoding = "2.1"
-#base64 = "0.11"
-#duct = "0.13"
 structopt = "0.3"
+str-macro = "1.0"
